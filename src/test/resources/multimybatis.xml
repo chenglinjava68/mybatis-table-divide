@@ -1,0 +1,5 @@
+<dal>
+
+  <route table="crawl_auto" strategy="mod(i, 5)"/>
+  <!--<route table="crawl_financing" strategy="com.limiku.spider.shard.GroupMappingRouter"/>-->
+</dal>
