@@ -56,7 +56,6 @@ import java.util.Properties;
         args = {MappedStatement.class, Object.class, RowBounds.class, ResultHandler.class,
             CacheKey.class, BoundSql.class}), @Signature(type = Executor.class, method = "update",
     args = {MappedStatement.class, Object.class})})
-@Deprecated
 public class MatrixTableInterceptor implements Interceptor {
 
   private static final Splitter COMA = Splitter.on(',').trimResults();
