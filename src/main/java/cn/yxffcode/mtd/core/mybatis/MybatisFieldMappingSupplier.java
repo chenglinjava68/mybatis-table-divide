@@ -1,7 +1,7 @@
 package cn.yxffcode.mtd.core.mybatis;
 
-import cn.yxffcode.mtd.core.FieldMapping;
 import com.google.common.base.Supplier;
+import com.limiku.spider.multimybatis.core.FieldMapping;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.ResultMap;

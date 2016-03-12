@@ -1,6 +1,7 @@
 package cn.yxffcode.mtd.core.mybatis;
 
 import org.apache.ibatis.mapping.BoundSql;
+import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlSource;
 
 /**
@@ -9,6 +10,7 @@ import org.apache.ibatis.mapping.SqlSource;
  * 一次DB访问中,SQL只被绑定一次.
  *
  * @author gaohang on 15/12/30.
+ * @see MatrixTableInterceptor#copyMappedStatement(MappedStatement, BoundSql)
  */
 public class BoundSqlSource implements SqlSource {
   private BoundSql boundSql;

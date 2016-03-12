@@ -1,5 +1,6 @@
 package cn.yxffcode.mtd.config;
 
+import cn.yxffcode.mtd.core.mybatis.listen.MappedStatementListener;
 import cn.yxffcode.mtd.core.router.Router;
 import cn.yxffcode.mtd.core.router.Routers;
 import com.google.common.base.Throwables;
@@ -21,8 +22,12 @@ import javax.xml.xpath.XPathExpressionException;
 import javax.xml.xpath.XPathFactory;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+
+import static org.apache.commons.lang3.StringUtils.isBlank;
 
 /**
  * The configuration for multimybatis.
@@ -36,7 +41,8 @@ public class Configuration {
   /**
    * keys are table name and values are router class.
    */
-  private Map<String, Router> routers;
+  private Map<String, Router> routers = Collections.emptyMap();
+  private List<MappedStatementListener> listeners = Collections.emptyList();
 
   private Configuration() {
   }
@@ -55,52 +61,69 @@ public class Configuration {
       XPathFactory xpathFactory = XPathFactory.newInstance();
       XPath xpath = xpathFactory.newXPath();
       NodeList nodeList = (NodeList) xpath.evaluate("/dal/route", document, XPathConstants.NODESET);
-      if (nodeList == null || nodeList.getLength() == 0) {
-        routers = Collections.emptyMap();
-      }
       parseRouters(nodeList);
+
+      NodeList listenerConfig =
+          (NodeList) xpath.evaluate("/dal/listener", document, XPathConstants.NODESET);
+      parseListeners(nodeList, listenerConfig);
     }
 
     configRouters();
   }
 
+  private void parseListeners(NodeList nodeList, NodeList listenerConfig)
+      throws ClassNotFoundException {
+    if (listenerConfig == null || nodeList.getLength() == 0) {
+      listeners = Collections.emptyList();
+      return;
+    }
+    listeners = new ArrayList<>(nodeList.getLength());
+    for (int i = 0, j = listenerConfig.getLength(); i < j; i++) {
+      Node item = listenerConfig.item(i);
+      Node node = item.getAttributes().getNamedItem("class");
+      if (node == null) {
+        throw new ConfigurationException("listener must has a class name");
+      }
+      String className = node.getNodeValue();
+      if (isBlank(className)) {
+        throw new ConfigurationException("listener must has a class name");
+      }
+      listeners.add((MappedStatementListener) BeanUtils.instantiate(Class.forName(className)));
+    }
+    listeners = Collections.unmodifiableList(listeners);
+  }
+
   private void parseRouters(NodeList nodeList) throws ClassNotFoundException {
     if (nodeList == null || nodeList.getLength() == 0) {
       routers = Collections.emptyMap();
-    } else {
-      if (routers == null) {
-        routers = Maps.newHashMapWithExpectedSize(nodeList.getLength());
+      return;
+    }
+    routers = Maps.newHashMapWithExpectedSize(nodeList.getLength());
+    for (int i = 0, j = nodeList.getLength(); i < j; i++) {
+      Node routeNode = nodeList.item(i);
+      String tableName = routeNode.getAttributes().getNamedItem("table").getTextContent();
+      String strategy = routeNode.getAttributes().getNamedItem("strategy").getTextContent();
+      int funcStart = strategy.indexOf('(');
+      if (funcStart < 0) {
+        //class
+        Router router = (Router) BeanUtils.instantiate(Class.forName(strategy));
+        routers.put(tableName, router);
+        continue;
       }
-      for (int i = 0, j = nodeList.getLength(); i < j; i++) {
-        Node routeNode = nodeList.item(i);
-        String tableName = routeNode.getAttributes().getNamedItem("table").getTextContent();
-        String strategy = routeNode.getAttributes().getNamedItem("strategy").getTextContent();
-        int funcStart = strategy.indexOf('(');
-        if (funcStart < 0) {
-          //class
-          Router router = (Router) BeanUtils.instantiate(Class.forName(strategy));
+      int funcEnd = strategy.indexOf(')');
+      if (funcEnd < 0) {
+        throw new ConfigurationException(
+            "strategy error, must be a class name or the exists strategy:" + routeNode);
+      }
+      String strategyFlag = strategy.substring(0, funcStart).trim();
+      for (Routers r : Routers.values()) {
+        if (StringUtils.equals(r.func(), strategyFlag)) {
+          Router router = r.generateRouter(strategy.substring(funcStart + 1, funcEnd));
           routers.put(tableName, router);
-          continue;
-        }
-        int funcEnd = strategy.indexOf(')');
-        if (funcEnd < 0) {
-          throw new ConfigurationException(
-              "strategy error, must be a class name or the exists strategy:" + routeNode);
-        }
-        String strategyFlag = strategy.substring(0, funcStart).trim();
-        for (Routers r : Routers.values()) {
-          if (StringUtils.equals(r.func(), strategyFlag)) {
-            Router router = r.generateRouter(strategy.substring(funcStart + 1, funcEnd));
-            routers.put(tableName, router);
-          }
         }
       }
     }
-    if (routers == null) {
-      routers = Collections.emptyMap();
-    } else {
-      routers = Collections.unmodifiableMap(routers);
-    }
+    routers = Collections.unmodifiableMap(routers);
   }
 
   private void configRouters() {
@@ -111,6 +134,10 @@ public class Configuration {
 
   public Router getRouter(String tableName) {
     return routers.get(tableName);
+  }
+
+  public List<MappedStatementListener> getListeners() {
+    return listeners;
   }
 
   private static final class ConfigurationHolder {
